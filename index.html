@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Caisse Express — Simulateur de rendu de monnaie</title>
+<meta name="description" content="Simulateur de caisse de supermarché : apprends à rendre la monnaie, gérer les Tickets Resto et les Chèques Vacances.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏪</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   CAISSE EXPRESS — Design system
+   Palette pastel moderne · Inter · coins arrondis · ombres douces
+   ============================================================ */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#eef1fb; --panel:#ffffff; --ink:#2b3044; --muted:#7a8099;
+  --prim:#7c6cf6; --prim-soft:#f1eefe; --ok:#22c55e; --ko:#ef4444;
+  --radius:20px; --shadow:0 6px 24px rgba(43,48,68,.08);
+  --font:'Inter',system-ui,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45;overflow-x:hidden;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0;z-index:-1;background:
+  radial-gradient(640px 320px at 6% -6%,rgba(124,108,246,.14),transparent 60%),
+  radial-gradient(700px 340px at 102% -4%,rgba(232,121,185,.13),transparent 60%),
+  radial-gradient(900px 420px at 50% 112%,rgba(52,199,123,.12),transparent 60%)}
+button{font-family:inherit}
+button:focus-visible,.btn:focus-visible{outline:3px solid #c7bffb;outline-offset:2px}
+::selection{background:#d9d3ff}
+
+/* ---------- Boutons ---------- */
+.btn{border:none;border-radius:12px;padding:11px 18px;font-weight:700;font-size:.92rem;cursor:pointer;
+  transition:transform .12s,box-shadow .15s,opacity .15s;display:inline-flex;align-items:center;gap:7px;justify-content:center}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn-valider{flex:1.4;min-width:180px;background:linear-gradient(135deg,#2fd473,#15a85a);color:#fff;
+  box-shadow:0 5px 16px rgba(31,180,100,.35);font-size:1rem;padding:13px}
+.btn-corriger{background:#f1f2f8;color:#565d78}
+.btn-corriger:hover{background:#e7e9f4}
+.btn-indice{background:#fff4dc;color:#a26b00;border:1.5px solid #f2c66d}
+.btn-indice:hover{background:#ffedc7}
+.btn-retry{background:#eef0fb;color:#4a55a2}
+.btn-skip{background:#f8f8fa;color:#8b90a5}
+
+/* ---------- En-tête ---------- */
+header{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.85);backdrop-filter:blur(10px);
+  border-bottom:1px solid #eceef8;padding:10px 18px;box-shadow:0 2px 14px rgba(43,48,68,.05)}
+.hrow{max-width:1400px;margin:0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hspacer{flex:1}
+.brand{font-weight:800;font-size:1.08rem;display:flex;align-items:center;gap:8px}
+.brand>span{display:flex;flex-direction:column;line-height:1.15}
+.brand small{font-weight:500;color:var(--muted);font-size:.68rem}
+.stat-chip{background:#f4f5fb;border-radius:12px;padding:6px 12px;font-size:.9rem;font-weight:700;display:flex;align-items:center;gap:6px}
+.stat-chip .lab{color:var(--muted);font-weight:600;font-size:.68rem;text-transform:uppercase;letter-spacing:.3px}
+.stat-chip .val{color:var(--prim);min-width:1.2em;text-align:center}
+.stat-chip.pop .val{animation:pop .3s ease-out}
+.level-tabs{display:flex;background:#f1f2f9;border-radius:14px;padding:4px;gap:4px}
+.level-tabs button{border:none;background:transparent;padding:8px 14px;border-radius:11px;font-weight:700;font-size:.85rem;cursor:pointer;color:#6a7089;transition:.15s}
+.level-tabs button.active{background:#fff;color:var(--prim);box-shadow:0 2px 8px rgba(43,48,68,.12)}
+.progress-wrap{display:flex;align-items:center;gap:10px;font-size:.8rem;font-weight:700;color:#565d78;min-width:240px}
+.progress-wrap .progress{flex:1}
+.progress{height:10px;background:#e6e8f4;border-radius:99px;overflow:hidden}
+#progressFill{height:100%;width:0%;background:linear-gradient(90deg,#7c6cf6,#c084fc);border-radius:99px;
+  transition:width .5s cubic-bezier(.22,1,.36,1)}
+
+/* ---------- Grille principale ---------- */
+.game-grid{display:grid;grid-template-columns:300px minmax(0,1fr) 340px;gap:18px;align-items:start;
+  max-width:1400px;margin:0 auto;padding:18px 18px 34px}
+.panel{background:var(--panel);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px}
+.panel h2{font-size:1rem;margin:0 0 10px}
+
+/* ---------- Ticket de caisse (gauche) ---------- */
+.receipt-panel{background:linear-gradient(180deg,#fdfdff,#f5f5fc);padding:14px}
+.receipt{background:#fff;border-radius:8px 8px 0 0;padding:14px 14px 6px;
+  font-family:Consolas,'Courier New',monospace;font-size:.83rem;color:#3a3f52;
+  box-shadow:0 3px 10px rgba(0,0,0,.06)}
+.r-head{display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:800;letter-spacing:1px}
+.r-head span{font-weight:500;font-size:.66rem;color:#9aa0b8;letter-spacing:0}
+.r-date{text-align:center;font-size:.66rem;color:#9aa0b8;margin-top:2px}
+#receiptItems{list-style:none;display:flex;flex-direction:column;gap:5px;margin:10px 0;padding:10px 0;
+  border-top:1.5px dashed #d9dbe8;border-bottom:1.5px dashed #d9dbe8;min-height:96px}
+#receiptItems li{display:flex;justify-content:space-between;gap:8px}
+.ri-name em{font-style:normal;color:#9aa0b8;font-size:.74rem}
+.r-total{display:flex;justify-content:space-between;font-weight:800;font-size:1.06rem;padding:6px 0 10px}
+.barcode{height:30px;margin:6px 6px 4px;
+  background:repeating-linear-gradient(90deg,#2b3044 0 2px,transparent 2px 4px,#2b3044 4px 7px,transparent 7px 9px)}
+.r-num{text-align:center;font-size:.66rem;color:#9aa0b8;padding-bottom:6px}
+.zig{height:10px;position:relative;z-index:2;margin-bottom:-2px;filter:drop-shadow(0 2px 2px rgba(0,0,0,.04));
+  background:conic-gradient(from 135deg at 50% 0,#fff 90deg,#0000 0) 0 0/14px 10px repeat-x}
+
+/* Tapis roulant */
+.belt{height:58px;background:linear-gradient(180deg,#4a5068,#262b3f);border-radius:0 0 14px 14px;overflow:hidden;position:relative;
+  box-shadow:inset 0 4px 10px rgba(0,0,0,.4)}
+.belt-track{display:flex;height:100%;width:max-content;animation:beltScroll 16s linear infinite}
+.belt-set{display:flex;align-items:center;gap:26px;padding:0 13px;font-size:1.8rem}
+.belt::after{content:"";position:absolute;left:0;right:0;bottom:0;height:10px;
+  background:repeating-linear-gradient(90deg,#1c2033 0 14px,#39405c 14px 28px);opacity:.92}
+@keyframes beltScroll{to{transform:translateX(-50%)}}
+
+/* ---------- Zone de caisse (centre) ---------- */
+.client-card{display:flex;gap:12px;align-items:center;background:linear-gradient(135deg,#f6f4ff,#fdf1f7);
+  border-radius:16px;padding:12px 14px}
+.avatar{width:52px;height:52px;border-radius:50%;background:#fff;display:grid;place-items:center;font-size:1.7rem;
+  box-shadow:var(--shadow);flex-shrink:0}
+.client-card>b{font-size:.95rem}
+.bubble{position:relative;background:#fff;border-radius:14px;padding:8px 12px;font-size:.88rem;box-shadow:var(--shadow);margin-top:4px;max-width:420px}
+.bubble::before{content:"";position:absolute;left:-5px;top:16px;transform:rotate(45deg);width:11px;height:11px;background:#fff}
+.pay-box{margin-top:12px;background:#fbfbfe;border:1.5px solid #eceef8;border-radius:16px;padding:12px 14px}
+.pb-title{font-weight:800;font-size:.92rem;margin-bottom:8px;display:flex;align-items:center}
+.level-chip{font-size:.68rem;background:var(--prim-soft);color:#6a5cd6;padding:2px 9px;border-radius:99px;font-weight:700;margin-left:auto}
+.pay-chips{display:flex;flex-wrap:wrap;gap:8px}
+.pay-summary{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:.85rem;color:#565d78}
+.pay-summary b{color:var(--ink)}
+.pchip{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:12px;font-size:.85rem;box-shadow:var(--shadow);position:relative}
+.pchip small{display:block;font-size:.6rem;text-transform:uppercase;letter-spacing:.4px;color:#8a8fa8}
+.pchip b{font-size:.95rem}
+.chip-cash{background:#f4f5fb;border:1.5px solid #e3e5f2}
+.chip-tr{background:linear-gradient(135deg,#fff4e0,#ffe3b8);border:1.5px dashed #f0a733}
+.chip-cv{background:linear-gradient(135deg,#e0fbf4,#bdf3e4);border:1.5px dashed #2fbf9a}
+.pchip.refuse{outline:2px solid var(--ko);animation:shakeX .5s}
+.pchip.refuse::after{content:"REFUSÉ";position:absolute;top:-9px;right:-8px;background:var(--ko);color:#fff;
+  font-size:.55rem;font-weight:800;padding:1px 7px;border-radius:6px;transform:rotate(8deg);letter-spacing:.5px}
+.rule{margin-top:10px;padding:10px 12px;border-radius:12px;font-size:.82rem;display:flex;gap:8px;align-items:flex-start;line-height:1.5}
+.rule.info{background:#eef5ff;border:1.5px dashed #93b8f5;color:#2c5bb7}
+.rule.warn{background:#fff1f0;border:1.5px dashed #f59993;color:#b42318;animation:shakeX .5s}
+
+/* Zone de rendu de monnaie */
+.render-zone{background:linear-gradient(180deg,#fbfbff,#f2f3fc);border:2px dashed #d6d5f0;border-radius:16px;
+  padding:14px;margin-top:14px;transition:box-shadow .3s}
+.rz-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;font-weight:700;font-size:.9rem}
+#renderTotal{font-size:1.5rem;font-weight:800;color:var(--prim)}
+#renderTotal.has{color:#15a85a}
+.sel-pieces{display:flex;flex-wrap:wrap;gap:7px;min-height:58px;align-items:center}
+.empty-hint{color:#9aa0b8;font-size:.85rem;font-style:italic}
+.selwrap{background:none;border:none;padding:2px;position:relative;cursor:pointer;border-radius:10px}
+.selwrap:hover{background:#eceafd}
+.selwrap::after{content:"✕";position:absolute;top:-5px;right:-5px;width:16px;height:16px;border-radius:50%;
+  background:var(--ko);color:#fff;font-size:.6rem;font-weight:800;display:grid;place-items:center;opacity:0;transition:.15s}
+.selwrap:hover::after{opacity:1}
+.selwrap .coin,.selwrap .bill{animation:pop .18s ease-out}
+
+/* Actions + feedback */
+.actions{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+.feedback{display:none;margin-top:12px;border-radius:14px;padding:14px;font-size:.9rem;line-height:1.55}
+.feedback.visible{display:block;animation:fadeUp .25s ease-out}
+.feedback.ok{background:#eefcf1;border:1.5px solid #b5e8c5;color:#166534}
+.feedback.err{background:#fef1f0;border:1.5px solid #f5b5b0;color:#9f1d12}
+.fb-title{font-weight:800;font-size:1rem;margin-bottom:4px}
+.fb-line{margin:3px 0}
+.fb-rule{margin-top:8px;background:#fff;border:1.5px dashed #e8b4b0;border-radius:10px;padding:8px 10px;font-size:.82rem}
+.fb-bonus{display:flex;justify-content:space-between;gap:10px;background:#ffffffa8;border-radius:8px;padding:4px 10px;margin-top:5px;font-size:.84rem}
+.fb-decomp{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px}
+.fb-actions{display:flex;gap:8px;margin-top:12px}
+.kbd-hint{margin-top:10px;text-align:center;font-size:.7rem;color:#a5aabd}
+@media (max-width:820px){.kbd-hint{display:none}}
+
+/* ---------- Tiroir-caisse (droite) ---------- */
+.drawer-panel{position:sticky;top:104px}
+.drawer-panel h2 small{display:block;font-weight:500;color:var(--muted);font-size:.7rem}
+.drawer-cols{display:grid;gap:14px}
+.dcol{min-width:0}
+.dcol h3{font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 10px}
+.coins-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;justify-items:center}
+.bills-col{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.bills-col .slot:last-child{grid-column:1/-1}
+.slot{background:none;border:none;padding:4px;border-radius:14px;cursor:pointer;user-select:none;
+  transition:transform .12s,background .15s}
+.slot:hover{transform:translateY(-3px);background:#f1f0ff}
+.slot:active{transform:scale(.94)}
+.slot .bill{width:100%}
+.drawer-panel.locked .slot{opacity:.45;pointer-events:none}
+
+/* Pièces */
+.coin{width:58px;height:58px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.82rem;
+  box-shadow:inset 0 -4px 8px rgba(0,0,0,.18),inset 0 3px 6px rgba(255,255,255,.55),0 2px 5px rgba(0,0,0,.15);
+  user-select:none;transition:transform .12s}
+.coin-copper{background:radial-gradient(circle at 32% 28%,#f0b490,#c67a45);color:#5a3313}
+.coin-gold{background:radial-gradient(circle at 32% 28%,#ffe9a8,#e0ac2e);color:#6b5310}
+.coin-1e{background:radial-gradient(circle at 32% 28%,#f4f6fb,#c3c9d9);color:#3f4658;box-shadow:inset 0 0 0 4px #e3c05a,inset 0 -4px 8px rgba(0,0,0,.18),0 2px 5px rgba(0,0,0,.15)}
+.coin-2e{background:radial-gradient(circle at 32% 28%,#ffe9a8,#e0ac2e);color:#6b5310;box-shadow:inset 0 0 0 4px #b9c0d0,inset 0 -4px 8px rgba(0,0,0,.18),0 2px 5px rgba(0,0,0,.15)}
+.coin.mini{width:42px;height:42px;font-size:.68rem;box-shadow:inset 0 0 0 3px rgba(255,255,255,.35),inset 0 -3px 6px rgba(0,0,0,.18),0 2px 4px rgba(0,0,0,.15)}
+.coin-1e.mini,.coin-2e.mini{box-shadow:inset 0 0 0 3px rgba(255,255,255,.5),inset 0 -3px 6px rgba(0,0,0,.18),0 2px 4px rgba(0,0,0,.15)}
+
+/* Billets */
+.bill{position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;width:auto;height:52px;
+  padding:0 14px;border-radius:10px;font-weight:800;color:#3b3f52;overflow:hidden;user-select:none;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.5),0 2px 6px rgba(0,0,0,.12);transition:transform .12s}
+.bill::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(255,255,255,.22) 0 2px,transparent 2px 6px);pointer-events:none}
+.bill-euro{width:26px;height:26px;border-radius:50%;background:rgba(255,255,255,.55);display:grid;place-items:center;
+  font-size:.85rem;border:1.5px solid rgba(255,255,255,.7);flex-shrink:0}
+.bill-val{font-size:1.05rem;text-shadow:0 1px 0 rgba(255,255,255,.4)}
+.b5{background:linear-gradient(135deg,#c7cdd9,#9aa5b5)}
+.b10{background:linear-gradient(135deg,#ffb3ab,#f2837b)}
+.b20{background:linear-gradient(135deg,#a9c7fb,#6f9ef2)}
+.b50{background:linear-gradient(135deg,#ffd39b,#f2a35a)}
+.b100{background:linear-gradient(135deg,#a8e6c3,#63c98f)}
+.bill.mini{height:36px;padding:0 10px;border-radius:8px}
+.bill.mini .bill-euro{width:20px;height:20px;font-size:.65rem}
+.bill.mini .bill-val{font-size:.85rem}
+.sel-pieces .bill{width:auto}
+
+/* ---------- Animations ---------- */
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}}
+@keyframes pop{from{transform:scale(.5);opacity:0}}
+@keyframes flashOk{0%{box-shadow:0 0 0 0 rgba(34,197,94,.55)}100%{box-shadow:0 0 0 22px rgba(34,197,94,0)}}
+@keyframes flashKo{0%{box-shadow:0 0 0 0 rgba(239,68,68,.55)}100%{box-shadow:0 0 0 22px rgba(239,68,68,0)}}
+@keyframes shakeX{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-6px)}40%,60%{transform:translateX(6px)}}
+.flash-ok{animation:flashOk .55s ease-out 2}
+.flash-ko{animation:flashKo .55s ease-out 2}
+.shake{animation:shakeX .5s}
+.float-pts{position:fixed;z-index:70;font-weight:800;color:#16a34a;font-size:1.3rem;pointer-events:none;
+  animation:floatUp 1.15s ease-out forwards;text-shadow:0 1px 0 #fff}
+@keyframes floatUp{from{transform:translateY(0);opacity:1}to{transform:translateY(-56px);opacity:0}}
+
+/* ---------- Toast ---------- */
+#toast{position:fixed;top:14px;left:50%;transform:translateX(-50%) translateY(-90px);background:#2b3044;color:#fff;
+  padding:10px 18px;border-radius:99px;font-size:.88rem;font-weight:600;z-index:80;max-width:92vw;text-align:center;
+  transition:transform .35s cubic-bezier(.22,1,.36,1);box-shadow:0 8px 24px rgba(0,0,0,.25)}
+#toast.show{transform:translateX(-50%) translateY(0)}
+
+/* ---------- Modales & overlay ---------- */
+.modal-back{position:fixed;inset:0;background:rgba(28,32,54,.55);backdrop-filter:blur(3px);display:none;place-items:center;z-index:60;padding:18px}
+.modal-back.open{display:grid}
+.modal{background:#fff;border-radius:22px;max-width:560px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.3);
+  animation:zoomIn .25s cubic-bezier(.22,1,.36,1);max-height:92vh;overflow:auto}
+@keyframes zoomIn{from{transform:scale(.92);opacity:0}}
+.modal-actions{display:flex;gap:10px;margin-top:16px}
+.modal-actions .btn{flex:1}
+.modal h2{margin-bottom:8px}
+/* Indice */
+.hint-intro{font-size:.85rem;color:var(--muted);margin-bottom:8px}
+.hint-intro small{display:block;margin-top:2px;color:#b0453a;font-size:.74rem}
+.hint-row{display:flex;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1.5px dashed #e8eaf4;font-size:.9rem}
+.hint-row.hl{background:#f4f2ff;border-radius:10px;padding:10px;margin-top:8px;font-weight:800;border-bottom:none;color:#5b4bc4}
+.hint-decomp{display:flex;flex-wrap:wrap;gap:6px;padding:12px 2px}
+.hint-tip{background:#fffbea;border:1.5px dashed #f2c66d;border-radius:12px;padding:10px 12px;font-size:.85rem;line-height:1.55}
+/* Fin de partie */
+.end{text-align:center}
+.end-emoji{font-size:3rem}
+.end-stars{font-size:2rem;letter-spacing:4px;margin:6px 0}
+.end-score{font-size:1.05rem;margin-bottom:12px}
+.badge-rec{display:inline-block;background:#fff4dc;color:#a26b00;font-size:.75rem;padding:2px 9px;border-radius:99px;font-weight:700}
+.end-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:8px 0 12px}
+.end-grid div{background:#f6f7fc;border-radius:14px;padding:10px 6px}
+.end-grid small{display:block;color:var(--muted);font-size:.64rem;text-transform:uppercase;letter-spacing:.4px}
+.end-grid b{font-size:1.02rem}
+.end-msg{font-size:.88rem;color:var(--muted);line-height:1.55}
+@media (max-width:560px){.end-grid{grid-template-columns:repeat(2,1fr)}}
+/* Overlay de départ */
+.start{max-width:640px}
+.hero{text-align:center;padding:6px 4px 0}
+.hero>div{font-size:3rem}
+.hero h1{font-size:clamp(1.25rem,3.4vw,1.75rem);margin-top:6px}
+.grad{background:linear-gradient(135deg,#7c6cf6,#e879b9);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sub{color:var(--muted);font-size:.92rem;line-height:1.55;max-width:520px;margin:8px auto 0}
+.level-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0}
+.lvl-card{border:2px solid #e6e8f4;border-radius:18px;padding:14px;text-align:left;cursor:pointer;transition:.18s;background:#fbfbff}
+.lvl-card:hover{transform:translateY(-4px);border-color:var(--prim);box-shadow:var(--shadow)}
+.lvl-card>span:first-child{font-size:1.5rem}
+.lvl-card b{display:block;margin:4px 0 2px;font-size:.95rem}
+.lvl-card p{font-size:.76rem;color:var(--muted);line-height:1.5}
+.lvl-card .go{margin-top:10px;display:inline-block;background:linear-gradient(135deg,#7c6cf6,#9f8bff);color:#fff;
+  padding:7px 12px;border-radius:10px;font-size:.78rem;font-weight:700}
+@media (max-width:720px){.level-cards{grid-template-columns:1fr}}
+.howto{display:grid;gap:6px;background:#f6f7fc;border-radius:14px;padding:12px 14px;font-size:.82rem;color:#565d78}
+.howto b{color:var(--ink);margin-bottom:2px}
+
+/* ---------- Confettis & divers ---------- */
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:65}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- Responsive ---------- */
+@media (max-width:1120px){
+  .game-grid{grid-template-columns:300px minmax(0,1fr)}
+  .drawer-panel{grid-column:1/-1;position:static}
+  .drawer-cols{grid-template-columns:1fr 1fr}
+}
+@media (max-width:820px){
+  .game-grid{grid-template-columns:1fr}
+  .center-panel{order:1}
+  .receipt-panel{order:2}
+  .drawer-panel{order:3}
+  .drawer-cols{grid-template-columns:1fr}
+  .progress-wrap{min-width:100%}
+}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+<div id="toast" role="status"></div>
+
+<!-- ==================== EN-TÊTE : progression, score, niveaux ==================== -->
+<header>
+  <div class="hrow">
+    <div class="brand">🏪 <span>Caisse Express<small>Simulateur de rendu de monnaie</small></span></div>
+    <div class="hspacer"></div>
+    <div class="stat-chip" id="chipScore">⭐ <span class="lab">Score</span> <span class="val" id="valScore">0</span></div>
+    <div class="stat-chip">🔥 <span class="lab">Série</span> <span class="val" id="valSerie">0</span></div>
+    <div class="stat-chip">🏅 <span class="lab">Record</span> <span class="val" id="valRecord">—</span></div>
+    <button class="btn btn-corriger" id="btnMuet" title="Activer / couper le son" aria-label="Son">🔊</button>
+  </div>
+  <div class="hrow" style="margin-top:8px">
+    <div class="level-tabs" id="levelTabs" aria-label="Choix du niveau">
+      <button data-niv="1" class="active">🌱 Débutant</button>
+      <button data-niv="2">🎯 Intermédiaire</button>
+      <button data-niv="3">🏆 Pro</button>
+    </div>
+    <div class="hspacer"></div>
+    <div class="progress-wrap">
+      <span id="progressLabel">Client 1/8</span>
+      <div class="progress"><div id="progressFill"></div></div>
+    </div>
+  </div>
+</header>
+
+<!-- ==================== GRILLE DE JEU ==================== -->
+<main class="game-grid">
+
+  <!-- GAUCHE : ticket de caisse + tapis roulant -->
+  <section class="panel receipt-panel" aria-label="Ticket de caisse">
+    <div class="receipt">
+      <div class="r-head"><b>MARKET EXPRESS</b><span>12 avenue des Exemples</span></div>
+      <div class="r-date" id="receiptDate">—</div>
+      <ul id="receiptItems"></ul>
+      <div class="r-total"><span>TOTAL</span><b id="receiptTotal">0,00 €</b></div>
+      <div class="barcode"></div>
+      <div class="r-num">Merci de votre visite !</div>
+    </div>
+    <div class="zig"></div>
+    <div class="belt" aria-hidden="true"><div class="belt-track" id="beltTrack"></div></div>
+  </section>
+
+  <!-- CENTRE : zone de caisse -->
+  <section class="panel center-panel" aria-label="Zone de caisse">
+    <div class="client-card">
+      <div class="avatar" id="avatar">👩</div>
+      <div><b id="clientName">Client</b><div class="bubble" id="bubble">Bonjour !</div></div>
+    </div>
+
+    <div class="pay-box">
+      <div class="pb-title">💳 Le client vous donne <span class="level-chip" id="levelChip">🌱 Débutant</span></div>
+      <div id="payChips" class="pay-chips"></div>
+      <div id="paySummary" class="pay-summary"></div>
+      <div id="ruleBanner"></div>
+    </div>
+
+    <div class="render-zone" id="renderZone">
+      <div class="rz-head"><span>🪙 Monnaie à rendre <small style="color:#9aa0b8;font-weight:500">(clique une pièce ici pour la retirer)</small></span><span id="renderTotal">0,00 €</span></div>
+      <div id="selectedPieces" class="sel-pieces"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-valider" id="btnValider">✅ Valider le rendu</button>
+      <button class="btn btn-corriger" id="btnCorriger" title="Vider la zone">🗑️ Corriger</button>
+      <button class="btn btn-indice" id="btnIndice" title="Explication pas à pas">💡 Indice</button>
+    </div>
+
+    <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+    <div class="kbd-hint">⌨️ Raccourcis : <b>Entrée</b> valider · <b>Retour arrière</b> retirer la dernière pièce · <b>Échap</b> tout enlever</div>
+  </section>
+
+  <!-- DROITE : tiroir-caisse virtuel -->
+  <section class="panel drawer-panel locked" id="drawerPanel" aria-label="Tiroir-caisse">
+    <h2>💸 Tiroir-Caisse<small>Clique une pièce ou un billet pour l'ajouter à la monnaie à rendre</small></h2>
+    <div class="drawer-cols">
+      <div class="dcol">
+        <h3>🪙 Pièces</h3>
+        <div id="coinsGrid" class="coins-grid"></div>
+      </div>
+      <div class="dcol dcol-bills">
+        <h3>💵 Billets</h3>
+        <div id="billsCol" class="bills-col"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ==================== MODALE : INDICE ==================== -->
+<div class="modal-back" id="hintModal">
+  <div class="modal" role="dialog" aria-label="Indice">
+    <h2>💡 Indice du caissier</h2>
+    <div id="hintBody"></div>
+    <div class="modal-actions"><button class="btn btn-valider" id="btnHintOk">J'ai compris !</button></div>
+  </div>
+</div>
+
+<!-- ==================== MODALE : FIN DE PARTIE ==================== -->
+<div class="modal-back" id="endModal">
+  <div class="modal end" role="dialog" aria-label="Fin de service">
+    <div class="end-emoji">🏆</div>
+    <h2>Service terminé !</h2>
+    <div id="endStars" class="end-stars"></div>
+    <div id="endStats"></div>
+    <div class="modal-actions">
+      <button class="btn btn-valider" id="btnRejouer">🔁 Rejouer ce niveau</button>
+      <button class="btn btn-corriger" id="btnMenu">📜 Changer de niveau</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== OVERLAY : ÉCRAN D'ACCUEIL ==================== -->
+<div class="modal-back open" id="startOverlay">
+  <div class="modal start" role="dialog" aria-label="Accueil">
+    <div class="hero">
+      <div>🏪</div>
+      <h1>Bienvenue à la caisse de <span class="grad">Market Express</span> !</h1>
+      <p class="sub">Ta mission : encaisser les clients et rendre <b>la monnaie exacte</b>. Sers <b>8 clients</b> de suite — bonus si tu utilises le minimum de pièces !</p>
+    </div>
+    <div class="level-cards">
+      <button class="lvl-card" data-niv="1">
+        <span>🌱</span><b>Débutant</b>
+        <p>Totaux simples (arrondis à 50 c). Le client paie juste ou avec un gros billet, sans piège. L'indice détaille chaque pièce à donner !</p>
+        <span class="go">Commencer →</span>
+      </button>
+      <button class="lvl-card" data-niv="2">
+        <span>🎯</span><b>Intermédiaire</b>
+        <p>Vrais prix avec centimes (13,47 €) et clients malins : ils donnent 20,50 € pour 15,50 € pour avoir une monnaie ronde…</p>
+        <span class="go">Commencer →</span>
+      </button>
+      <button class="lvl-card" data-niv="3">
+        <span>🏆</span><b>Pro</b>
+        <p>Titres Restaurant &amp; Chèques Vacances : rends la monnaie uniquement sur la partie en espèces, comme en vrai !</p>
+        <span class="go">Commencer →</span>
+      </button>
+    </div>
+    <div class="howto">
+      <b>Comment jouer ?</b>
+      <span>1️⃣ Regarde le ticket et ce que donne le client (espèces, Ticket Resto, Chèque Vacances…)</span>
+      <span>2️⃣ Clique sur les pièces et billets du tiroir pour préparer la monnaie dans la zone centrale</span>
+      <span>3️⃣ Clique sur Valider : monnaie exacte = points, bonus rapidité &amp; rendu optimal 🏆</span>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   1. CONSTANTES & DONNÉES — tous les montants sont en CENTIMES
+   ============================================================ */
+const PIECES=[1,2,5,10,20,50,100,200];          // pièces : 1c → 2€
+const BILLETS=[500,1000,2000,5000,10000];       // billets : 5€ → 100€
+const DENOMS_DESC=[10000,5000,2000,1000,500,200,100,50,20,10,5,2,1];
+const TR_VALEURS=[500,1000,1500,2000,2500];     // Titres Restaurant papier
+const CV_VALEURS=[1000,2000,2500,5000];         // Chèques Vacances papier
+const NB_CLIENTS=8;                              // clients par service
+
+const NIVEAUX={
+  1:{nom:"Débutant",emoji:"🌱",base:10,tempo:25},
+  2:{nom:"Intermédiaire",emoji:"🎯",base:20,tempo:25},
+  3:{nom:"Pro",emoji:"🏆",base:30,tempo:35},
+};
+
+const CATALOGUE=[
+  {n:"Baguette",e:"🥖",p:120},{n:"Croissants",e:"🥐",p:260},{n:"Lait demi-écrémé",e:"🥛",p:135},
+  {n:"Beurre salé",e:"🧈",p:290},{n:"Œufs (boîte 6)",e:"🥚",p:320},{n:"Fromage râpé",e:"🧀",p:245},
+  {n:"Pommes",e:"🍎",p:280},{n:"Bananes",e:"🍌",p:190},{n:"Tomates",e:"🍅",p:340},
+  {n:"Carottes",e:"🥕",p:150},{n:"Pâtes penne",e:"🍝",p:185},{n:"Riz basmati",e:"🍚",p:310},
+  {n:"Chocolat noir",e:"🍫",p:245},{n:"Biscuits",e:"🍪",p:220},{n:"Café moulu",e:"☕",p:410},
+  {n:"Jus d'orange",e:"🧃",p:275},{n:"Soda cola",e:"🥤",p:230},{n:"Eau minérale",e:"💧",p:95},
+  {n:"Yaourts (x4)",e:"🍶",p:305},{n:"Steak haché",e:"🥩",p:650},{n:"Filet de saumon",e:"🐟",p:790},
+  {n:"Gel douche",e:"🧴",p:495},{n:"Dentifrice",e:"🪥",p:335},{n:"Papier toilette",e:"🧻",p:540},
+  {n:"Savon",e:"🧼",p:180},{n:"Chips",e:"🍟",p:205},{n:"Pop-corn",e:"🍿",p:250},{n:"Miel",e:"🍯",p:470},
+  {n:"Confiture",e:"🍓",p:360},{n:"Céréales",e:"🥣",p:385},
+];
+
+const PRENOMS=["Emma","Lucas","Chloé","Nathan","Léa","Hugo","Manon","Louis","Sarah","Jules","Inès","Théo","Camille","Maxime","Zoé","Adam","Alice","Gabriel"];
+const AVATARS=["👩","👨","👵","🧓","🧔","👱‍♀️","👩‍🦱","👨‍🦰","🧑","👧","👦","👩‍🦳"];
+const HELLOS=["Bonjour ! Voici mes articles 😊","Bonjour, belle journée ! ☀️","Salut ! Je suis un peu pressé(e) 😄","Bonjour ! Merci de préparer mon ticket 🙏","Hello ! Voilà tout mon panier 🛒"];
+const MERCI=["Merci beaucoup ! 🎉","Parfait, bonne journée ! 👋","Super, à bientôt ! 😄","Merci, vous êtes rapide ! ⭐"];
+const DOUTES=["Euh… vous êtes sûr(e) ? 🤔","Hmm, ça ne me semble pas exact… 🧐","Vous pouvez vérifier ? 😅"];
+
+/* ============================================================
+   2. OUTILS GÉNÉRAUX
+   ============================================================ */
+const $=(s)=>document.querySelector(s);
+const rand=(a,b)=>a+Math.floor(Math.random()*(b-a+1));
+const pick=(a)=>a[rand(0,a.length-1)];
+const somme=(a)=>a.reduce((s,v)=>s+v,0);
+
+/** 1350 → "13,50 €" */
+function fmt(c){const s=(Math.abs(c)/100).toFixed(2).replace(".",",");return (c<0?"−":"")+s+" €";}
+/** 500 → "5 €", 50 → "50 c" (affichage compact des pièces/billets) */
+function fmtCourt(c){
+  if(c<100) return c+" c";
+  const s=(c/100).toFixed(2);
+  return (s.endsWith("00")?s.slice(0,-3):s.replace(".",","))+" €";
+}
+/** 50 → "50 centimes", 200 → "2 €" (texte lisible) */
+function montantTexte(v){return v<100?v+" centime"+(v>1?"s":""):fmtCourt(v);}
+/** Nom complet d'une pièce/billet : "billet de 5 €", "pièce de 50 centimes" */
+function nomPiece(v){return (v>=500?"billet":(v>=100?"pièce":"pièce"))+" de "+montantTexte(v);}
+/** Décomposition optimale (algorithme glouton — valide pour la zone euro) */
+function glouton(cents){const out=[];let r=cents;for(const d of DENOMS_DESC){while(r>=d){out.push(d);r-=d;}}return out;}
+/** Regroupe une liste de valeurs → [[valeur,nb],…] triée décroissante */
+function groupe(liste){const m=new Map();for(const v of liste)m.set(v,(m.get(v)||0)+1);return [...m.entries()].sort((a,b)=>b[0]-a[0]);}
+/** "1 billet de 5 € + 1 pièce de 0,50 €" */
+function texteRendu(liste){
+  if(!liste.length) return "rien (paiement exact)";
+  return groupe(liste).map(([v,n])=> n===1?`1 ${nomPiece(v)}`:`${n} ${v>=500?"billets":"pièces"} de ${montantTexte(v)}`).join(" + ");
+}
+/** Le client "sort" son argent : décomposition réaliste de son paiement */
+function decomposePaiement(cents){return glouton(cents);}
+/** Plus petit billet "rond" ≥ total, avec un rendu raisonnable (50 c à 30 €) */
+function billetArrondi(total){
+  const o=[500,1000,2000,5000].filter(b=>b-total>=50&&b-total<=3000);
+  return o.length?pick(o):5000;
+}
+
+/* ============================================================
+   3. ÉTAT DU JEU
+   ============================================================ */
+const S={
+  niveau:1, enJeu:false, bloque:false, warnPhase:false,
+  servis:0, score:0, serie:0, bestSerie:0, reussites:0, reussites1er:0,
+  client:null, paiement:null, selection:[],
+  debut:0, indiceUtilise:false, reprise:false, minuteur:null, record:0,
+};
+
+/* ============================================================
+   4. MOTEUR AUDIO (Web Audio API) — sons synthétisés, zéro fichier
+   ============================================================ */
+let actx=null, muet=false;
+function ctxAudio(){
+  if(!actx){try{actx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){}}
+  if(actx&&actx.state==="suspended")actx.resume();
+  return actx;
+}
+function ton(freq,duree,type,vol,delai){
+  if(muet)return;
+  const c=ctxAudio();if(!c)return;
+  type=type||"sine";vol=vol||.12;delai=delai||0;
+  const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+delai;
+  o.type=type;o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+duree);
+  o.connect(g);g.connect(c.destination);o.start(t);o.stop(t+duree+0.06);
+}
+const sndPiece =()=>ton(950+Math.random()*250,.07,"triangle",.10);            // clic pièce
+const sndRetire=()=>ton(520,.07,"triangle",.07);                              // retrait pièce
+const sndSucces=()=>{ton(1046,.10,"square",.10);ton(1568,.12,"square",.10,.10);ton(2093,.20,"sine",.08,.20);}; // "bip caisse"
+const sndErreur=()=>{ton(196,.22,"sawtooth",.12);ton(147,.30,"sawtooth",.10,.14);};
+const sndDing  =()=>ton(1318,.15,"sine",.10);
+
+/* ============================================================
+   5. CONFETTIS (canvas)
+   ============================================================ */
+const cnv=$("#confetti"),ctx2d=cnv.getContext("2d");
+let parts=[],rafId=null;
+function tailleCanvas(){cnv.width=innerWidth;cnv.height=innerHeight;}
+addEventListener("resize",tailleCanvas);tailleCanvas();
+function confettis(n){
+  n=n||130;
+  const cols=["#f87171","#fbbf24","#34d399","#60a5fa","#c084fc","#f472b6","#facc15"];
+  for(let i=0;i<n;i++){
+    parts.push({x:Math.random()*cnv.width,y:-20-Math.random()*cnv.height*.3,
+      vx:(Math.random()-.5)*3,vy:2+Math.random()*3.5,s:6+Math.random()*7,
+      c:pick(cols),r:Math.random()*Math.PI,vr:(Math.random()-.5)*.25,vie:100+Math.random()*50});
+  }
+  if(!rafId)boucleConf();
+}
+function boucleConf(){
+  rafId=requestAnimationFrame(boucleConf);
+  ctx2d.clearRect(0,0,cnv.width,cnv.height);
+  parts=parts.filter(p=>p.vie-->0&&p.y<cnv.height+30);
+  if(!parts.length){cancelAnimationFrame(rafId);rafId=null;ctx2d.clearRect(0,0,cnv.width,cnv.height);return;}
+  for(const p of parts){
+    p.x+=p.vx;p.y+=p.vy;p.vy+=0.05;p.r+=p.vr;
+    ctx2d.save();ctx2d.translate(p.x,p.y);ctx2d.rotate(p.r);
+    ctx2d.fillStyle=p.c;ctx2d.fillRect(-p.s/2,-p.s/2,p.s,p.s*.6);
+    ctx2d.restore();
+  }
+}
+
+/* ============================================================
+   6. GÉNÉRATION DES CLIENTS & PAIEMENTS (par niveau)
+   ============================================================ */
+/** Panier d'articles adapté au niveau (niveau 1 : prix arrondis à 50 c) */
+function piocherArticles(niv){
+  const nb=niv===1?rand(2,3):niv===2?rand(3,4):rand(3,5);
+  const idx=new Set();
+  while(idx.size<nb)idx.add(rand(0,CATALOGUE.length-1));
+  return [...idx].map(i=>{
+    const a=CATALOGUE[i];
+    let prix=a.p;
+    if(niv===1)prix=Math.max(50,Math.round(prix/50)*50);
+    const q=Math.random()<0.25?2:1;
+    return {n:a.n,e:a.e,p:prix,q};
+  });
+}
+function totalArticles(items){return items.reduce((s,a)=>s+a.p*a.q,0);}
+
+/** NIVEAU 1 : paiement exact (32 %) ou un seul gros billet sans piège */
+function paiementN1(total){
+  if(Math.random()<0.32)return {type:"cash",tr:[],cv:[],cash:decomposePaiement(total)};
+  return {type:"cash",tr:[],cv:[],cash:[billetArrondi(total)]};
+}
+/** NIVEAU 2 : centimes, billets ronds, "piège" du 20,50 €, monnaie minuscule */
+function paiementN2(total){
+  const r=Math.random();
+  if(r<0.15) return {type:"cash",tr:[],cv:[],cash:decomposePaiement(total)};      // paie l'exact
+  if(r<0.50) return {type:"cash",tr:[],cv:[],cash:[billetArrondi(total)]};        // billet rond
+  if(r<0.82){                                                                      // billet + 0,50 € → monnaie ronde
+    const b=billetArrondi(total);
+    return {type:"cash",tr:[],cv:[],cash:decomposePaiement(b+50)};
+  }
+  const d=pick([2,5,10,20,50]);                                                    // il a compté ses pièces
+  return {type:"cash",tr:[],cv:[],cash:decomposePaiement(total+d)};
+}
+/** NIVEAU 3 — Titre Restaurant : monnaie rendue UNIQUEMENT sur la partie espèces */
+function paiementTR(total){
+  if(total<600)return paiementN2(total);
+  let tr=null;
+  // Parfois les titres couvrent EXACTEMENT le total → aucune monnaie à rendre
+  if(total%100===0&&Math.random()<0.15){
+    const c=[];
+    for(const a of TR_VALEURS)for(const b of [0].concat(TR_VALEURS))if(a+b===total)c.push(b?[a,b]:[a]);
+    if(c.length)tr=pick(c);
+  }
+  if(!tr){
+    const c1=TR_VALEURS.filter(v=>v<=total-300);
+    if(c1.length){
+      const a=pick(c1);
+      const c2=TR_VALEURS.filter(v=>v<=total-a-300);
+      tr=(c2.length&&Math.random()<0.45)?[a,pick(c2)]:[a];
+    }else tr=[500];
+  }
+  const reste=total-somme(tr);
+  const cash=reste===0?[]:(Math.random()<0.35?glouton(reste):glouton(billetArrondi(reste)));
+  return {type:"tr",tr:tr,cv:[],cash:cash};
+}
+/** NIVEAU 3 — Chèque Vacances : AUCUN rendu sur le chèque ; s'il dépasse → refusé ! */
+function paiementCV(total){
+  if(total<600)return paiementN2(total);
+  const r=Math.random();
+  // Chèque couvrant exactement le total
+  if(r<0.15&&CV_VALEURS.includes(total))return {type:"cv",tr:[],cv:[total],cash:[],warn:0};
+  // Chèque TROP GRAND → avertissement puis le client propose un autre paiement
+  if(r<0.40){
+    const bigs=CV_VALEURS.filter(v=>v>total);
+    const smalls=CV_VALEURS.filter(v=>v<=total-100);
+    if(bigs.length&&smalls.length){
+      const cv2=pick(smalls),reste=total-cv2;
+      const cash=Math.random()<0.4?glouton(reste):glouton(billetArrondi(reste));
+      return {type:"cv",tr:[],cv:[cv2],cash:cash,warn:pick(bigs)};
+    }
+  }
+  // Cas normal : chèque ≤ total, le client complète en espèces
+  const smalls=CV_VALEURS.filter(v=>v<=total-100);
+  if(!smalls.length)return paiementN2(total);
+  const cv=pick(smalls),reste=total-cv;
+  const cash=Math.random()<0.35?glouton(reste):glouton(billetArrondi(reste));
+  return {type:"cv",tr:[],cv:[cv],cash:cash,warn:0};
+}
+function paiementN3(total){
+  const r=Math.random();
+  return r<0.38?paiementTR(total):(r<0.75?paiementCV(total):paiementN2(total));
+}
+function genPaiement(niv,total){
+  return niv===1?paiementN1(total):(niv===2?paiementN2(total):paiementN3(total));
+}
+/* ============================================================
+   7. FABRIQUE VISUELLE DES PIÈCES / BILLETS / TITRES
+   ============================================================ */
+function pieceHTML(v,opt){
+  opt=opt||{};
+  const mini=opt.mini?" mini":"";
+  if(v>=500){ // billet
+    const col={500:"b5",1000:"b10",2000:"b20",5000:"b50",10000:"b100"}[v];
+    return `<div class="bill ${col}${mini}" title="${nomPiece(v)}"><span class="bill-euro">€</span><span class="bill-val">${fmtCourt(v)}</span><span class="bill-euro">€</span></div>`;
+  }
+  if(v>=100){ // pièces de 1 € / 2 €
+    const cls=v===200?"coin coin-2e":"coin coin-1e";
+    return `<div class="${cls}${mini}" title="${nomPiece(v)}"><span>${fmtCourt(v)}</span></div>`;
+  }
+  const cls=v>=10?"coin coin-gold":"coin coin-copper"; // centimes
+  return `<div class="${cls}${mini}" title="${nomPiece(v)}"><span>${v}c</span></div>`;
+}
+function chipCash(v){
+  return `<div class="pchip chip-cash"><span>${v>=500?"💵":"🪙"}</span><span><small>${v>=500?"Billet":"Pièce"}</small><b>${fmtCourt(v)}</b></span></div>`;
+}
+function chipTR(v,extra){return `<div class="pchip chip-tr ${extra||""}"><span>🎫</span><span><small>Titre Resto</small><b>${fmtCourt(v)}</b></span></div>`;}
+function chipCV(v,extra){return `<div class="pchip chip-cv ${extra||""}"><span>🏖️</span><span><small>Chèque Vacances</small><b>${fmtCourt(v)}</b></span></div>`;}
+
+/* ============================================================
+   8. FONCTIONS DE RENDU DE L'INTERFACE
+   ============================================================ */
+function bubble(txt){$("#bubble").textContent=txt;}
+function flash(el,cls){el.classList.remove("flash-ok","flash-ko");void el.offsetWidth;el.classList.add(cls);}
+
+let toastT=null;
+function toast(msg){
+  const t=$("#toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("show"),2300);
+}
+function floatPts(txt){
+  const r=$("#chipScore").getBoundingClientRect();
+  const el=document.createElement("div");
+  el.className="float-pts";el.textContent=txt;
+  el.style.left=(r.left+r.width/2-34)+"px";el.style.top=(r.bottom+8)+"px";
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(),1250);
+}
+
+/** Ticket de caisse (gauche) */
+function rendTicket(){
+  $("#receiptItems").innerHTML=S.client.items.map(a=>
+    `<li><span class="ri-name">${a.e} ${a.n}${a.q>1?` <em>×${a.q}</em>`:""}</span><span class="ri-prix">${fmt(a.p*a.q)}</span></li>`).join("");
+  $("#receiptTotal").textContent=fmt(S.client.total);
+  $("#receiptDate").textContent=new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"})+" · Caisse 3 · "+S.client.nom;
+  $("#avatar").textContent=S.client.avatar;
+  $("#clientName").textContent=S.client.nom;
+  bubble(pick(HELLOS));
+}
+/** Tapis roulant : les articles du panier défilent en boucle */
+function rendTapis(){
+  const gen=["🥕","🍅","🥖","🥛","🍎","🧀","🍫","🥫","🧴","🍌"];
+  const set=S.client.items.map(a=>a.e);
+  let i=0;
+  while(set.length<7)set.push(gen[i++%gen.length]);
+  const html=set.map(e=>`<span>${e}</span>`).join("");
+  $("#beltTrack").innerHTML=`<div class="belt-set">${html}</div><div class="belt-set">${html}</div>`;
+}
+/** Encart paiement : ce que donne le client + rappels de règles TR/CV */
+function rendPaiement(){
+  const p=S.paiement,chips=[];
+  if(S.warnPhase){
+    chips.push(chipCV(p.warn,"refuse"));
+  }else{
+    for(const v of p.tr)chips.push(chipTR(v));
+    for(const v of p.cv)chips.push(chipCV(v));
+    for(const v of p.cash)chips.push(chipCash(v));
+  }
+  $("#payChips").innerHTML=chips.join("");
+  const tot=S.warnPhase?p.warn:p.donne;
+  let sum=`<span>Total donné : <b>${fmt(tot)}</b></span>`;
+  if(!S.warnPhase&&(p.tr.length||p.cv.length)){
+    sum+=`<span>🎫 Titres : <b>${fmt(p.couvert)}</b></span><span>💵 Espèces : <b>${fmt(p.especesDonnees)}</b></span>`;
+  }
+  $("#paySummary").innerHTML=sum;
+  const rb=$("#ruleBanner");
+  if(S.warnPhase){
+    rb.className="rule warn";
+    rb.innerHTML=`⚠️ <span>Le chèque de <b>${fmt(p.warn)}</b> dépasse le total de <b>${fmt(p.total)}</b> ! <b>Aucune monnaie ne peut être rendue sur un Chèque Vacances</b>…</span>`;
+  }else if(S.niveau===3&&p.tr.length){
+    rb.className="rule info";
+    rb.innerHTML=`💡 <span><b>Règle Titre Restaurant :</b> aucune monnaie ne se rend sur les TR ! La monnaie se rend uniquement sur la partie payée en espèces.</span>`;
+  }else if(S.niveau===3&&p.cv.length){
+    rb.className="rule info";
+    rb.innerHTML=`💡 <span><b>Règle Chèque Vacances :</b> aucun rendu sur le chèque (il doit être ≤ au total). La monnaie se rend sur la partie en espèces.</span>`;
+  }else{rb.innerHTML="";rb.className="";}
+}
+/** Zone "Monnaie à rendre" : pièces choisies + total temps réel */
+function renderSelection(){
+  const z=$("#selectedPieces");
+  if(!S.selection.length){
+    z.innerHTML=`<div class="empty-hint">🪙 Clique sur les pièces et billets du tiroir pour préparer la monnaie…</div>`;
+  }else{
+    z.innerHTML=S.selection.map((v,i)=>`<button class="selwrap" data-i="${i}" title="Remettre dans le tiroir" aria-label="Retirer ${nomPiece(v)}">${pieceHTML(v,{mini:true})}</button>`).join("");
+  }
+  const totalSel=somme(S.selection);
+  $("#renderTotal").textContent=fmt(totalSel);
+  $("#renderTotal").classList.toggle("has",S.selection.length>0);
+  $("#btnCorriger").disabled=!S.selection.length||S.bloque||!S.enJeu;
+  $("#btnValider").disabled=S.bloque||!S.enJeu;
+  $("#btnIndice").disabled=(S.bloque||!S.enJeu)&&!S.warnPhase;
+  $("#drawerPanel").classList.toggle("locked",S.bloque||!S.enJeu);
+}
+function majLevelTabs(){
+  document.querySelectorAll("#levelTabs button").forEach(b=>b.classList.toggle("active",+b.dataset.niv===S.niveau));
+}
+function majStats(){
+  $("#valScore").textContent=S.score;
+  $("#valSerie").textContent=S.serie;
+  $("#valRecord").textContent=S.record>0?S.record:"—";
+  const c=$("#chipScore");c.classList.remove("pop");void c.offsetWidth;c.classList.add("pop");
+}
+function majProgress(){
+  const done=Math.min(S.servis,NB_CLIENTS);
+  $("#progressFill").style.width=(done/NB_CLIENTS*100)+"%";
+  $("#progressLabel").textContent=S.enJeu?`Client ${Math.min(S.servis+1,NB_CLIENTS)}/${NB_CLIENTS}`:"Service terminé";
+}
+
+/* ============================================================
+   9. DÉROULEMENT D'UN CLIENT
+   ============================================================ */
+function nouveauClient(){
+  const items=piocherArticles(S.niveau),total=totalArticles(items);
+  const pay=genPaiement(S.niveau,total);
+  pay.total=total;
+  pay.donne=somme(pay.tr)+somme(pay.cv)+somme(pay.cash);
+  pay.couvert=somme(pay.tr)+somme(pay.cv);
+  pay.resteEspeces=total-pay.couvert;           // ce qui reste à régler après titres
+  pay.especesDonnees=somme(pay.cash);
+  pay.aRendre=pay.especesDonnees-pay.resteEspeces; // monnaie à rendre en espèces (≥ 0)
+  S.client={nom:pick(PRENOMS),avatar:pick(AVATARS),items:items,total:total};
+  S.paiement=pay;S.selection=[];
+  S.indiceUtilise=false;S.reprise=false;S.warnPhase=false;S.bloque=false;
+  $("#feedback").className="feedback";
+  rendTicket();rendTapis();rendPaiement();renderSelection();majProgress();
+  // Cas spécial : le client tend d'abord un Chèque Vacances TROP GRAND → refusé !
+  if(pay.warn){
+    S.warnPhase=true;S.bloque=true;
+    bubble(`Je n'ai qu'un chèque de ${fmt(pay.warn)}… 😬`);
+    rendPaiement();renderSelection();
+    S.minuteur=setTimeout(()=>{
+      S.warnPhase=false;S.bloque=false;S.debut=Date.now();
+      rendPaiement();renderSelection();sndDing();
+      toast("Le client propose un autre paiement ✅");
+      bubble("Alors, je vous donne ça à la place 😅");
+    },2600);
+  }else{
+    S.debut=Date.now();
+  }
+}
+
+/* ============================================================
+   10. TIROIR : AJOUT / RETRAIT DES PIÈCES
+   ============================================================ */
+function ajouterPiece(v){
+  if(!S.enJeu||S.bloque)return;
+  S.selection.push(v);sndPiece();renderSelection();
+}
+
+/* ============================================================
+   11. VALIDATION : SUCCÈS OU ERREUR PÉDAGOGIQUE
+   ============================================================ */
+function valider(){
+  if(!S.enJeu||S.bloque)return;
+  const donne=somme(S.selection),attendu=S.paiement.aRendre;
+  if(donne===attendu)succes();else erreur(donne,attendu);
+}
+
+function succes(){
+  S.bloque=true;renderSelection();
+  const premier=!S.reprise;
+  S.servis++;S.reussites++;
+  if(premier)S.reussites1er++;
+  if(premier){S.serie++;S.bestSerie=Math.max(S.bestSerie,S.serie);}else S.serie=0;
+  const L=NIVEAUX[S.niveau],tps=(Date.now()-S.debut)/1000;
+  let pts,bonus=[];
+  if(!premier){
+    pts=Math.floor(L.base/2);
+    bonus.push(["🔁 Récupéré après erreur","+"+pts]);
+  }else{
+    pts=L.base;
+    bonus.push(["✅ Client servi","+"+L.base]);
+    if(S.indiceUtilise){const mal=L.base-Math.ceil(L.base/2);pts-=mal;bonus.push(["💡 Indice utilisé","−"+mal]);}
+    if(S.serie>=2&&!S.indiceUtilise){const c=Math.min((S.serie-1)*2,10);pts+=c;bonus.push([`🔥 Série ×${S.serie}`,"+"+c]);}
+    const att=S.paiement.aRendre;
+    if(att>0){
+      if(S.selection.length===glouton(att).length){pts+=5;bonus.push(["🏆 Rendu optimal (min. de pièces)","+5"]);}
+      else bonus.push([`💡 Optimise : possible en ${glouton(att).length} pièce(s)/billet(s)`,"—"]);
+    }
+    if(!S.indiceUtilise&&tps<=L.tempo){pts+=3;bonus.push([`⚡ Rapidité (${Math.round(tps)} s)`,"+3"]);}
+  }
+  S.score+=pts;
+  majStats();floatPts("+"+pts+" pts");
+  const selChips=S.selection.length?`<div class="fb-decomp">${groupe(S.selection).map(([v])=>pieceHTML(v,{mini:true})).join("")}</div>`:"";
+  $("#feedback").className="feedback ok visible";
+  $("#feedback").innerHTML=
+    `<div class="fb-title">✅ Parfait, ${S.client.nom} est servi(e) !</div>
+     <div class="fb-line">Tu as rendu <b>${fmt(somme(S.selection))}</b>${S.selection.length?" : "+texteRendu(S.selection):" — paiement exact, aucune monnaie à rendre."}</div>
+     ${selChips}
+     ${bonus.map(b=>`<div class="fb-bonus"><span>${b[0]}</span><b>${b[1]}</b></div>`).join("")}`;
+  flash($("#renderZone"),"flash-ok");sndSucces();confettis();bubble(pick(MERCI));
+  majProgress();
+  if(S.servis>=NB_CLIENTS)S.minuteur=setTimeout(finPartie,4000);
+  else S.minuteur=setTimeout(clientSuivant,4000);
+}
+
+function erreur(donne,attendu){
+  S.serie=0;S.bloque=true;
+  majStats();renderSelection();
+  sndErreur();flash($("#renderZone"),"flash-ko");
+  const rz=$("#renderZone");rz.classList.add("shake");setTimeout(()=>rz.classList.remove("shake"),600);
+  const diff=donne-attendu;
+  let ligne;
+  if(attendu===0)ligne=`Le client a payé <b>exactement</b> : il ne faut rendre <b>aucune monnaie</b> !`;
+  else if(diff>0)ligne=`Tu as rendu <b>${fmt(diff)} de trop</b> (${fmt(donne)} au lieu de ${fmt(attendu)}).`;
+  else ligne=`Il <b>manque ${fmt(-diff)}</b> (${fmt(donne)} au lieu de ${fmt(attendu)}).`;
+  const sol=glouton(attendu);
+  const regle3=(S.niveau===3&&(S.paiement.tr.length||S.paiement.cv.length))?
+    `<div class="fb-rule">🧾 Rappel : espèces données <b>${fmt(S.paiement.especesDonnees)}</b> − reste à payer après titres <b>${fmt(S.paiement.resteEspeces)}</b> = <b>${fmt(attendu)}</b> à rendre en espèces uniquement.</div>`:"";
+  $("#feedback").className="feedback err visible";
+  $("#feedback").innerHTML=
+    `<div class="fb-title">❌ Ce n'est pas encore ça…</div>
+     <div class="fb-line">${ligne}</div>
+     ${attendu>0?`<div class="fb-line">Il fallait rendre : <b>${texteRendu(sol)}</b></div><div class="fb-decomp">${sol.map(v=>pieceHTML(v,{mini:true})).join("")}</div>`:""}
+     ${regle3}
+     <div class="fb-actions">
+       <button class="btn btn-retry" id="btnRetry">🔄 Réessayer</button>
+       <button class="btn btn-skip" id="btnSkip">⏭️ Client suivant</button>
+     </div>`;
+  $("#btnRetry").addEventListener("click",()=>{
+    S.reprise=true;S.bloque=false;S.selection=[];S.debut=Date.now();
+    $("#feedback").className="feedback";renderSelection();
+  });
+  $("#btnSkip").addEventListener("click",()=>clientSuivant(true));
+  bubble(pick(DOUTES));
+}
+
+function clientSuivant(passe){
+  clearTimeout(S.minuteur);
+  if(passe){
+    S.servis++;S.serie=0;
+    toast("Client passé — 0 point 😅");
+    majProgress();
+    if(S.servis>=NB_CLIENTS){finPartie();return;}
+  }
+  $("#feedback").className="feedback";
+  nouveauClient();
+}
+
+/* ============================================================
+   12. FIN DE PARTIE : STATISTIQUES
+   ============================================================ */
+function finPartie(){
+  clearTimeout(S.minuteur);
+  S.enJeu=false;S.bloque=true;
+  majProgress();renderSelection();
+  const prec=Math.round(S.reussites1er/NB_CLIENTS*100);
+  const stars=prec>=90?"⭐⭐⭐":(prec>=65?"⭐⭐":(prec>=40?"⭐":"💫"));
+  const cle="caisseRecord_N"+S.niveau;
+  let rec=0;try{rec=+localStorage.getItem(cle)||0;}catch(e){}
+  let newRec=false;
+  if(S.score>rec){newRec=true;S.record=S.score;try{localStorage.setItem(cle,String(S.score));}catch(e){}}
+  majStats();
+  $("#endStars").textContent=stars;
+  $("#endStats").innerHTML=
+    `<div class="end-score">Score final : <b>${S.score}</b>${newRec?' <span class="badge-rec">🏅 Nouveau record !</span>':""}</div>
+     <div class="end-grid">
+       <div><small>Clients encaissés</small><b>${S.reussites}/${NB_CLIENTS}</b></div>
+       <div><small>Réussite 1ᵉʳ coup</small><b>${prec} %</b></div>
+       <div><small>Meilleure série</small><b>${S.bestSerie}</b></div>
+       <div><small>Niveau</small><b>${NIVEAUX[S.niveau].emoji} ${NIVEAUX[S.niveau].nom}</b></div>
+     </div>
+     <p class="end-msg">${prec>=90?"Incroyable ! Tu es un(e) as de la caisse 🏅":
+        (prec>=65?"Très bon service ! Encore un petit effort pour la perfection 💪":
+        (prec>=40?"Pas mal ! Refais un service pour progresser 🌱":
+        "Continue l'entraînement : l'indice 💡 t'explique la méthode pas à pas !"))}</p>`;
+  $("#endModal").classList.add("open");
+  sndDing();confettis(160);
+}
+
+/* ============================================================
+   13. INDICE PÉDAGOGIQUE (méthode du caissier)
+   ============================================================ */
+function ouvrirIndice(){
+  if(!S.enJeu||S.bloque||S.warnPhase)return;
+  S.indiceUtilise=true;sndDing();
+  const p=S.paiement,att=p.aRendre,sol=glouton(att);
+  let h=`<p class="hint-intro">Pas de panique ! Voici la méthode pas à pas 🎓<small>(l'indice retire le bonus rapidité et divise les points de ce client)</small></p>
+    <div class="hint-row"><span>🧾 Total à payer</span><b>${fmt(p.total)}</b></div>
+    <div class="hint-row"><span>💳 Le client donne</span><b>${fmt(p.donne)}</b></div>`;
+  if(p.tr.length||p.cv.length){
+    h+=`<div class="hint-row"><span>🎫 Payé en titres (TR/CV)</span><b>${fmt(p.couvert)}</b></div>
+        <div class="hint-row"><span>💵 Reste à régler en espèces</span><b>${fmt(p.resteEspeces)}</b></div>
+        <div class="hint-row"><span>🪙 Espèces données</span><b>${fmt(p.especesDonnees)}</b></div>`;
+  }
+  if(att>0){
+    h+=`<div class="hint-row hl"><span>✅ Monnaie à rendre</span><b>${fmt(att)}</b></div>
+        <div class="hint-decomp">${sol.map(v=>pieceHTML(v,{mini:true})).join("")}</div>
+        <div class="hint-tip">🎯 <b>Méthode du caissier :</b> compte en remontant du total jusqu'au montant donné.<br>
+        ${fmt(p.total)} + ${sol.map(v=>fmtCourt(v)).join(" + ")} = ${fmt(p.donne)} ✓<br>
+        C'est le rendu avec le <b>minimum de pièces et billets</b> : pose-les dans la zone puis valide !</div>`;
+  }else{
+    h+=`<div class="hint-row hl"><span>✅ Monnaie à rendre</span><b>0,00 €</b></div>
+        <div class="hint-tip">🎯 Le client a payé l'exact : ne mets <b>rien</b> dans la zone et clique simplement sur <b>✅ Valider</b> !</div>`;
+  }
+  $("#hintBody").innerHTML=h;
+  $("#hintModal").classList.add("open");
+}
+
+/* ============================================================
+   14. DÉMARRAGE / REINITIALISATION
+   ============================================================ */
+function demarrer(niv){
+  S.niveau=niv;S.enJeu=true;S.bloque=false;S.warnPhase=false;
+  S.servis=0;S.score=0;S.serie=0;S.bestSerie=0;S.reussites=0;S.reussites1er=0;
+  try{S.record=+localStorage.getItem("caisseRecord_N"+niv)||0;}catch(e){S.record=0;}
+  clearTimeout(S.minuteur);
+  majLevelTabs();majStats();majProgress();
+  $("#levelChip").textContent=NIVEAUX[niv].emoji+" "+NIVEAUX[niv].nom;
+  $("#endModal").classList.remove("open");
+  $("#hintModal").classList.remove("open");
+  $("#startOverlay").classList.remove("open");
+  nouveauClient();
+  toast(`Nouveau service — Niveau ${niv} : ${NIVEAUX[niv].nom} ${NIVEAUX[niv].emoji}`);
+}
+/* ============================================================
+   15. CONSTRUCTION DU TIROIR-CAISSE + ÉVÉNEMENTS
+   ============================================================ */
+function construireTiroir(){
+  $("#coinsGrid").innerHTML=PIECES.map(v=>
+    `<button class="slot" data-v="${v}" aria-label="Ajouter ${nomPiece(v)}">${pieceHTML(v)}</button>`).join("");
+  $("#billsCol").innerHTML=BILLETS.map(v=>
+    `<button class="slot slot-bill" data-v="${v}" aria-label="Ajouter ${nomPiece(v)}">${pieceHTML(v)}</button>`).join("");
+}
+
+function init(){
+  construireTiroir();
+  $("#receiptDate").textContent=new Date().toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric"})+" · Caisse 3";
+  renderSelection();
+
+  // --- Tiroir : clic = ajouter la pièce/billet à la zone de rendu ---
+  const clicTiroir=e=>{
+    const b=e.target.closest("[data-v]");
+    if(!b)return;
+    ajouterPiece(+b.dataset.v);
+  };
+  $("#coinsGrid").addEventListener("click",clicTiroir);
+  $("#billsCol").addEventListener("click",clicTiroir);
+
+  // --- Zone de rendu : clic = remettre la pièce dans le tiroir ---
+  $("#selectedPieces").addEventListener("click",e=>{
+    const b=e.target.closest("[data-i]");
+    if(!b)return;
+    S.selection.splice(+b.dataset.i,1);
+    sndRetire();renderSelection();
+  });
+
+  // --- Boutons principaux ---
+  $("#btnValider").addEventListener("click",valider);
+  $("#btnCorriger").addEventListener("click",()=>{
+    if(S.bloque||!S.selection.length)return;
+    S.selection=[];sndRetire();renderSelection();
+  });
+  $("#btnIndice").addEventListener("click",ouvrirIndice);
+  $("#btnHintOk").addEventListener("click",()=>$("#hintModal").classList.remove("open"));
+  $("#btnMuet").addEventListener("click",()=>{
+    muet=!muet;
+    $("#btnMuet").textContent=muet?"🔇":"🔊";
+    if(!muet)sndDing();
+  });
+
+  // --- Choix du niveau (onglets) ---
+  $("#levelTabs").addEventListener("click",e=>{
+    const b=e.target.closest("[data-niv]");
+    if(!b)return;
+    const niv=+b.dataset.niv;
+    if(niv===S.niveau&&S.enJeu)return;
+    if(S.enJeu&&(S.servis>0||S.score>0)&&!confirm("Recommencer un nouveau service au niveau choisi ? La partie en cours sera perdue."))return;
+    demarrer(niv);
+  });
+
+  // --- Écran d'accueil : cartes de niveau ---
+  document.querySelectorAll("#startOverlay .lvl-card").forEach(c=>{
+    c.addEventListener("click",()=>demarrer(+c.dataset.niv));
+  });
+
+  // --- Fin de partie ---
+  $("#btnRejouer").addEventListener("click",()=>demarrer(S.niveau));
+  $("#btnMenu").addEventListener("click",()=>{
+    $("#endModal").classList.remove("open");
+    $("#startOverlay").classList.add("open");
+  });
+
+  // --- Audio : le contexte se crée au premier geste utilisateur ---
+  document.addEventListener("pointerdown",()=>ctxAudio(),{once:true});
+
+  // --- Raccourcis clavier ---
+  addEventListener("keydown",e=>{
+    if(!S.enJeu)return;
+    if(e.key==="Enter"){
+      if(S.bloque){ // pendant une erreur, Entrée = réessayer
+        const b=$("#btnRetry");
+        if(b&&$("#feedback").classList.contains("err"))b.click();
+        return;
+      }
+      valider();
+    }else if(e.key==="Escape"&&!S.bloque&&S.selection.length){
+      S.selection=[];sndRetire();renderSelection();
+    }else if(e.key==="Backspace"&&!S.bloque&&S.selection.length){
+      e.preventDefault();S.selection.pop();sndRetire();renderSelection();
+    }
+  });
+}
+
+init();
+
+</script>
+
+</body>
+</html>
